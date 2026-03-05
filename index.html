@@ -7,28 +7,33 @@
 </head>
 <body style="margin:0; overflow:hidden;">
 
-<input type="file" id="imageInput" accept="image/png, image/jpeg" style="position:absolute; top:10px; left:10px; z-index:10;">
+<!-- 画像選択 -->
+<input type="file" id="imageInput" accept="image/png, image/jpeg" 
+       style="position:absolute; top:10px; left:10px; z-index:10;">
+
+<!-- 大きさ調整スライダー -->
+<input type="range" id="sizeSlider" min="0.1" max="3" step="0.01" value="1" 
+       style="position:absolute; top:50px; left:10px; z-index:10; width:120px;">
 
 <script>
 let camera, scene, renderer;
 let imagePlane;
+let imageRatio = 1;
 
 // カメラ用
 const video = document.createElement('video');
 video.autoplay = true;
 video.playsInline = true;
-video.muted = true; // iOSは音声ミュート必須で自動再生可能
+video.muted = true;
 
 navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-.then(stream => {
-    video.srcObject = stream;
-})
+.then(stream => { video.srcObject = stream; })
 .catch(err => { console.error("カメラアクセスエラー", err); });
 
 video.onloadedmetadata = () => {
     video.play();
     const videoTexture = new THREE.VideoTexture(video);
-    scene.background = videoTexture; // ここで背景にセット
+    scene.background = videoTexture;
 };
 
 init();
@@ -48,7 +53,7 @@ function init(){
     imagePlane.position.set(0,0,-2);
     scene.add(imagePlane);
 
-    // スマホライブラリから画像選択
+    // 画像選択
     const input = document.getElementById("imageInput");
     input.addEventListener("change", function(e){
         const file = e.target.files[0];
@@ -58,9 +63,10 @@ function init(){
             const img = new Image();
             img.src = ev.target.result;
             img.onload = function(){
-                const ratio = img.width / img.height;
+                imageRatio = img.width / img.height; // 縦横比保存
                 imagePlane.geometry.dispose();
-                imagePlane.geometry = new THREE.PlaneGeometry(ratio,1);
+                const sliderValue = document.getElementById("sizeSlider").value;
+                imagePlane.geometry = new THREE.PlaneGeometry(imageRatio * sliderValue, 1 * sliderValue);
 
                 const texture = new THREE.Texture(img);
                 texture.needsUpdate = true;
@@ -71,6 +77,14 @@ function init(){
             }
         }
         reader.readAsDataURL(file);
+    });
+
+    // スライダーでサイズ調整
+    const slider = document.getElementById("sizeSlider");
+    slider.addEventListener("input", function(){
+        const val = parseFloat(this.value);
+        imagePlane.geometry.dispose();
+        imagePlane.geometry = new THREE.PlaneGeometry(imageRatio * val, 1 * val);
     });
 
     window.addEventListener("resize", onWindowResize);
