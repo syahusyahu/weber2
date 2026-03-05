@@ -2,17 +2,26 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>WebAR PNG Viewer</title>
+<title>WebAR Camera Background</title>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 </head>
 <body style="margin:0; overflow:hidden;">
 
-<!-- スマホライブラリから選択 -->
+<!-- スマホライブラリから画像選択 -->
 <input type="file" id="imageInput" accept="image/png, image/jpeg" style="position:absolute; top:10px; left:10px; z-index:10;">
 
 <script>
 let camera, scene, renderer;
 let imagePlane;
+
+// カメラ用ビデオ要素
+const video = document.createElement('video');
+video.autoplay = true;
+video.playsInline = true;
+
+navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+  .then(stream => { video.srcObject = stream; })
+  .catch(err => { console.error("カメラアクセスエラー", err); });
 
 init();
 animate();
@@ -20,31 +29,26 @@ animate();
 function init() {
     scene = new THREE.Scene();
 
-    camera = new THREE.PerspectiveCamera(
-        70,
-        window.innerWidth / window.innerHeight,
-        0.01,
-        20
-    );
+    // カメラ
+    camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
+    // レンダラー
     renderer = new THREE.WebGLRenderer({ alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.xr.enabled = true;
     document.body.appendChild(renderer.domElement);
 
-    // 初期プレースホルダー画像
-    const placeholderTexture = new THREE.TextureLoader().load(""); // 空でもOK
-    const geometry = new THREE.PlaneGeometry(1, 1); // 比率は後で変更可能
-    const material = new THREE.MeshBasicMaterial({
-        map: placeholderTexture,
-        transparent: true
-    });
+    // ビデオを背景にする
+    const videoTexture = new THREE.VideoTexture(video);
+    scene.background = videoTexture;
 
+    // 初期Plane（空でもOK）
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 });
     imagePlane = new THREE.Mesh(geometry, material);
     imagePlane.position.set(0, 0, -2);
     scene.add(imagePlane);
 
-    // スマホライブラリ選択時の処理
+    // スマホライブラリ選択時
     const input = document.getElementById("imageInput");
     input.addEventListener("change", function(event) {
         const file = event.target.files[0];
@@ -52,7 +56,6 @@ function init() {
         const reader = new FileReader();
         reader.onload = function(e) {
             const texture = new THREE.TextureLoader().load(e.target.result, () => {
-                // 読み込み後に比率を反映
                 const img = new Image();
                 img.src = e.target.result;
                 img.onload = function() {
@@ -62,6 +65,7 @@ function init() {
                 }
             });
             imagePlane.material.map = texture;
+            imagePlane.material.transparent = true;
             imagePlane.material.needsUpdate = true;
         };
         reader.readAsDataURL(file);
@@ -82,8 +86,7 @@ function animate() {
 
 function render() {
     if (imagePlane) {
-        // 常にカメラ正面
-        imagePlane.quaternion.copy(camera.quaternion);
+        imagePlane.quaternion.copy(camera.quaternion); // 常にカメラ正面
     }
     renderer.render(scene, camera);
 }
