@@ -7,87 +7,87 @@
 </head>
 <body style="margin:0; overflow:hidden;">
 
-<!-- スマホライブラリから画像選択 -->
 <input type="file" id="imageInput" accept="image/png, image/jpeg" style="position:absolute; top:10px; left:10px; z-index:10;">
 
 <script>
 let camera, scene, renderer;
 let imagePlane;
 
-// カメラ用ビデオ要素
+// カメラ用
 const video = document.createElement('video');
 video.autoplay = true;
 video.playsInline = true;
+video.muted = true; // iOSは音声ミュート必須で自動再生可能
 
 navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-  .then(stream => { video.srcObject = stream; })
-  .catch(err => { console.error("カメラアクセスエラー", err); });
+.then(stream => {
+    video.srcObject = stream;
+})
+.catch(err => { console.error("カメラアクセスエラー", err); });
+
+video.onloadedmetadata = () => {
+    video.play();
+    const videoTexture = new THREE.VideoTexture(video);
+    scene.background = videoTexture; // ここで背景にセット
+};
 
 init();
 animate();
 
-function init() {
+function init(){
     scene = new THREE.Scene();
-
-    // カメラ
-    camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-
-    // レンダラー
-    renderer = new THREE.WebGLRenderer({ alpha: true });
+    camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.01, 20);
+    renderer = new THREE.WebGLRenderer({ alpha:true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // ビデオを背景にする
-    const videoTexture = new THREE.VideoTexture(video);
-    scene.background = videoTexture;
-
-    // 初期Plane（空でもOK）
-    const geometry = new THREE.PlaneGeometry(1, 1);
-    const material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 });
+    // 初期Plane（透明）
+    const geometry = new THREE.PlaneGeometry(1,1);
+    const material = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0 });
     imagePlane = new THREE.Mesh(geometry, material);
-    imagePlane.position.set(0, 0, -2);
+    imagePlane.position.set(0,0,-2);
     scene.add(imagePlane);
 
-    // スマホライブラリ選択時
+    // スマホライブラリから画像選択
     const input = document.getElementById("imageInput");
-    input.addEventListener("change", function(event) {
-        const file = event.target.files[0];
-        if (!file) return;
+    input.addEventListener("change", function(e){
+        const file = e.target.files[0];
+        if(!file) return;
         const reader = new FileReader();
-        reader.onload = function(e) {
-            const texture = new THREE.TextureLoader().load(e.target.result, () => {
-                const img = new Image();
-                img.src = e.target.result;
-                img.onload = function() {
-                    const ratio = img.width / img.height;
-                    imagePlane.geometry.dispose();
-                    imagePlane.geometry = new THREE.PlaneGeometry(ratio, 1);
-                }
-            });
-            imagePlane.material.map = texture;
-            imagePlane.material.transparent = true;
-            imagePlane.material.needsUpdate = true;
-        };
+        reader.onload = function(ev){
+            const img = new Image();
+            img.src = ev.target.result;
+            img.onload = function(){
+                const ratio = img.width / img.height;
+                imagePlane.geometry.dispose();
+                imagePlane.geometry = new THREE.PlaneGeometry(ratio,1);
+
+                const texture = new THREE.Texture(img);
+                texture.needsUpdate = true;
+                imagePlane.material.map = texture;
+                imagePlane.material.transparent = true;
+                imagePlane.material.opacity = 1;
+                imagePlane.material.needsUpdate = true;
+            }
+        }
         reader.readAsDataURL(file);
     });
 
     window.addEventListener("resize", onWindowResize);
 }
 
-function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
+function onWindowResize(){
+    camera.aspect = window.innerWidth/window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-function animate() {
+function animate(){
     renderer.setAnimationLoop(render);
 }
 
-function render() {
-    if (imagePlane) {
-        imagePlane.quaternion.copy(camera.quaternion); // 常にカメラ正面
-    }
+function render(){
+    if(imagePlane) imagePlane.quaternion.copy(camera.quaternion); // 常にカメラ正面
     renderer.render(scene, camera);
 }
 </script>
